@@ -246,9 +246,12 @@ public class Map_Activity extends AppCompatActivity {
 for(ParkingModel in : parkingMode)
 {
     SimpleFillSymbol polygonSymbol = null;
-    int total,reservedCount;
+    int total,reservedCount,red,green,yellow;
     total=Integer.parseInt(in.total);
     reservedCount=Integer.parseInt(in.reservedCount);
+    red= total*90/100;
+    yellow=total*70/100;
+    green=total*40/100;
 
     PointCollection polygonPoints = new PointCollection(SpatialReferences.getWebMercator());
     polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( in.areaCoordinates.pointX,
@@ -263,20 +266,22 @@ for(ParkingModel in : parkingMode)
             in.areaCoordinates.pointY4));
 
     Polygon polygon = new Polygon(polygonPoints);
-    if(reservedCount<=total*(40/100))
+    if(reservedCount<=green)
     { polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.SOLID, Color.RED,
             new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.RED, 2.0f));}
-    else if(reservedCount<=total*(70/100))
+    else if(reservedCount<=yellow)
     {
         polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.SOLID, Color.GREEN,
                 new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.GREEN, 2.0f));
     }
-    else if(reservedCount>=total*(90/100))
+
+    else
     {
         polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.SOLID, Color.YELLOW,
                 new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.YELLOW, 2.0f));
     }
 
+    assert polygonSymbol != null;
     Graphic polygonGraphic = new Graphic(polygon, polygonSymbol);
     mGraphicsOverlay.getGraphics().add(polygonGraphic);
 }
