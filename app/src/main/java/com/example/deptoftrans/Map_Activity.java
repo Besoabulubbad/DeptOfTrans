@@ -54,6 +54,7 @@ public class Map_Activity extends AppCompatActivity {
     BitmapDrawable parkingMarker;
     PictureMarkerSymbol parkingPicture;
     Graphic markerGraphics;
+    ParkingModel[] parkingModel;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -61,7 +62,7 @@ public class Map_Activity extends AppCompatActivity {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
        initViews();
         try {
-            readFile();
+            parkingModel= readFile();
         } catch (IOException e) {
             e.printStackTrace();
         } catch (JSONException e) {
@@ -89,7 +90,7 @@ public class Map_Activity extends AppCompatActivity {
         mLocationDisplay.startAsync();
         setupMap();
         setupLocationDisplay();
-        createGraphics();
+        createGraphics(parkingModel);
 
     }
     @Override
@@ -123,8 +124,9 @@ public class Map_Activity extends AppCompatActivity {
         }
         super.onDestroy();
     }
-    private void readFile() throws IOException, JSONException {
+    private ParkingModel[] readFile() throws IOException, JSONException {
         InputStream is  = getResources().openRawResource(R.raw.parking);
+        ParkingModel[] parkingModel;
         Writer writer = new StringWriter();
         char[] buffer = new char[1024];
         try {
@@ -143,24 +145,31 @@ public class Map_Activity extends AppCompatActivity {
 
         String jsonString = writer.toString();
         JSONObject parkingJson = new JSONObject(jsonString);
-        JSONArray collection = new JSONArray(parkingJson.getJSONArray("collection"));
-        for (int i=0 ; i<=collection.length();i++)
+        JSONArray collection = parkingJson.getJSONArray("collection");
+        parkingModel = new ParkingModel[collection.length()];
+        for (int i=0 ; i<collection.length();i++)
         {
             JSONObject parkingObject= collection.getJSONObject(i);
-            JSONArray areaMarkerArray=parkingObject.getJSONArray("areaMarker");
+            JSONObject areaMarkerObject=parkingObject.getJSONObject("areaMarker");
             JSONArray areaCoordinatesArray=parkingObject.getJSONArray("areaCoordinates");
-            AreaMarker areaMarker;
-            AreaCoordinates areaCoordinates;
-            for (int i1=0;i1<=areaMarkerArray.length();i1++)
-            {
-               JSONObject areaMarkerObject = areaMarkerArray.getJSONObject(i);
+            AreaMarker areaMarker = null;
+            AreaCoordinates areaCoordinates=null;
                areaMarker = new AreaMarker(areaMarkerObject.getDouble("x"),areaMarkerObject.getDouble("y"),areaMarkerObject.getDouble("long"),areaMarkerObject.getDouble("lat"));
-            }
-            for (int i2=0;i2<=areaCoordinatesArray.length();i2++)
+            Double[] lat = new Double[0],longitude = new Double[0];
+            lat=new Double[areaCoordinatesArray.length()];
+            longitude=new Double[areaCoordinatesArray.length()];
+            for (int i2=0;i2<areaCoordinatesArray.length(); i2++)
             {
-                
+               JSONArray areaCoordinatesArray2 = areaCoordinatesArray.getJSONArray(i2);
+                   lat[i2]= areaCoordinatesArray2.getDouble(0);
+                   longitude[i2]=areaCoordinatesArray2.getDouble(1);
+
+
             }
+            areaCoordinates=new AreaCoordinates(lat[0],longitude[0],lat[1],longitude[1],lat[2],longitude[2],lat[3],longitude[3],lat[4],longitude[4]);
+            parkingModel[i]= new ParkingModel(parkingObject.getString("parkingId"),parkingObject.getString("name"),parkingObject.getString("description"),parkingObject.getString("total"),parkingObject.getString("reservedCount"),parkingObject.getString("availableCount"),areaMarker,areaCoordinates);
         }
+        return parkingModel;
  }
     private void initViews() {
         drawerLayout=findViewById(R.id.drawer_layout);
@@ -217,41 +226,66 @@ public class Map_Activity extends AppCompatActivity {
         mMapView.getGraphicsOverlays().add(mGraphicsOverlay);
 
     }
-    private void createMarkers() {
-        parkingMarker = (BitmapDrawable)(ContextCompat.getDrawable(this, R.drawable.parking_marker_icon));
-        parkingPicture= new PictureMarkerSymbol(parkingMarker);
-        parkingPicture.setHeight(50);
-        parkingPicture.setWidth(50);
+    private void createMarkers(ParkingModel[] parkingMode) {
+        for(ParkingModel in : parkingMode)
+        {
+            parkingMarker = (BitmapDrawable)(ContextCompat.getDrawable(this, R.drawable.parking_marker_icon));
+            parkingPicture= new PictureMarkerSymbol(parkingMarker);
+            parkingPicture.setHeight(50);
+            parkingPicture.setWidth(50);
+            com.esri.arcgisruntime.geometry.Point markerPoint = new com.esri.arcgisruntime.geometry.Point( in.areaMarker.x,  in.areaMarker.y, SpatialReferences.getWebMercator());
+            markerGraphics = new Graphic(markerPoint,parkingPicture);
+            mGraphicsOverlay.getGraphics().add(markerGraphics);
 
-        com.esri.arcgisruntime.geometry.Point markerPoint = new com.esri.arcgisruntime.geometry.Point(6052673.669676768, 2810937.162025518, SpatialReferences.getWebMercator());
-        markerGraphics = new Graphic(markerPoint,parkingPicture);
-        mGraphicsOverlay.getGraphics().add(markerGraphics);
+        }
+
+
     }
 
-    private void createPolygonGraphics() {
+    private void createPolygonGraphics(ParkingModel[] parkingMode) {
+for(ParkingModel in : parkingMode)
+{
+    SimpleFillSymbol polygonSymbol = null;
+    int total,reservedCount;
+    total=Integer.parseInt(in.total);
+    reservedCount=Integer.parseInt(in.reservedCount);
 
-        PointCollection polygonPoints = new PointCollection(SpatialReferences.getWebMercator());
-        polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( 6052679.417963875,
-                2811035.207221929));
-        polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( 6052712.267686795,
-                2810922.940336639));
-        polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( 6052694.632572386,
-                2810838.1430084));
-        polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( 6052621.498715568,
-                2810943.24392228));
-        polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( 6052679.417963875,
-                2811035.207221929));
+    PointCollection polygonPoints = new PointCollection(SpatialReferences.getWebMercator());
+    polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( in.areaCoordinates.pointX,
+            in.areaCoordinates.pointY));
+    polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( in.areaCoordinates.pointX1,
+            in.areaCoordinates.pointY1));
+    polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( in.areaCoordinates.pointX2,
+            in.areaCoordinates.pointY2));
+    polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( in.areaCoordinates.pointX3,
+            in.areaCoordinates.pointY3));
+    polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( in.areaCoordinates.pointX4,
+            in.areaCoordinates.pointY4));
 
-        Polygon polygon = new Polygon(polygonPoints);
-        SimpleFillSymbol polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.HORIZONTAL, Color.RED,
-                new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.RED, 2.0f));
-        Graphic polygonGraphic = new Graphic(polygon, polygonSymbol);
-        mGraphicsOverlay.getGraphics().add(polygonGraphic);
+    Polygon polygon = new Polygon(polygonPoints);
+    if(reservedCount<=total*(40/100))
+    { polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.SOLID, Color.RED,
+            new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.RED, 2.0f));}
+    else if(reservedCount<=total*(70/100))
+    {
+        polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.SOLID, Color.GREEN,
+                new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.GREEN, 2.0f));
     }
-    private void createGraphics() {
+    else if(reservedCount>=total*(90/100))
+    {
+        polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.SOLID, Color.YELLOW,
+                new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.YELLOW, 2.0f));
+    }
+
+    Graphic polygonGraphic = new Graphic(polygon, polygonSymbol);
+    mGraphicsOverlay.getGraphics().add(polygonGraphic);
+}
+
+    }
+    private void createGraphics(ParkingModel[] parkingModel) {
         createGraphicsOverlay();
-        createMarkers();
-        createPolygonGraphics();
+        createMarkers(parkingModel);
+        createPolygonGraphics(parkingModel);
 
 
     }

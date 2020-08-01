@@ -1,17 +1,18 @@
 package com.example.deptoftrans;
 
 public class ParkingModel {
-    String parkingId,name,description,total,reservedCount,availableCount;
-    AreaMarker areaMarker;
-    AreaCoordinates areaCoordinates;
+   public String parkingId,name,description,total,reservedCount,availableCount;
+    public   AreaMarker areaMarker;
+    public AreaCoordinates areaCoordinates;
 ParkingModel(String parkingId, String name, String description, String total, String reservedCount, String availableCount, AreaMarker areaMarker, AreaCoordinates areaCoordinates)
 {
-    this.parkingId=parkingId; this.name=name; this.description=description; this.total=total; this.reservedCount=reservedCount; this.availableCount=availableCount; this.areaMarker=areaMarker; this.areaCoordinates=areaCoordinates;
+    this.parkingId=parkingId; this.name=name; this.description=description; this.total=total; this.reservedCount=reservedCount;
+    this.availableCount=availableCount; this.areaMarker=areaMarker; this.areaCoordinates=areaCoordinates;
 }
 }
 class AreaMarker
 {
-Double x,y, longitude,lat;
+    public Double x,y, longitude,lat;
 AreaMarker(Double x,Double y ,Double longitude, Double lat)
 {
     this.x=x; this.y=y; this.longitude=longitude; this.lat=lat;
@@ -20,7 +21,7 @@ AreaMarker(Double x,Double y ,Double longitude, Double lat)
 }
 class AreaCoordinates
 {
-Double pointX,pointY,pointX1,pointY1,pointX2,pointY2,pointX3,pointY3,pointX4,pointY4;
+    public Double pointX,pointY,pointX1,pointY1,pointX2,pointY2,pointX3,pointY3,pointX4,pointY4;
 AreaCoordinates(Double pointX,Double pointY,Double pointX1,Double pointY1,Double pointX2,Double pointY2,Double pointX3,Double pointY3 ,Double pointX4,Double pointY4)
 {
     this.pointX=pointX; this.pointY=pointY;
