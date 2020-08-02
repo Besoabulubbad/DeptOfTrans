@@ -1,21 +1,37 @@
 package com.example.deptoftrans;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
+import android.telecom.Call;
+import android.util.Log;
+import android.view.ContextThemeWrapper;
+import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
+
+import com.esri.arcgisruntime.concurrent.ListenableFuture;
+import com.esri.arcgisruntime.geometry.Geometry;
+import com.esri.arcgisruntime.geometry.GeometryDimension;
+import com.esri.arcgisruntime.geometry.GeometryEngine;
+import com.esri.arcgisruntime.geometry.Point;
 import com.esri.arcgisruntime.geometry.PointCollection;
 import com.esri.arcgisruntime.geometry.Polygon;
 import com.esri.arcgisruntime.geometry.SpatialReferences;
 import com.esri.arcgisruntime.mapping.ArcGISMap;
 import com.esri.arcgisruntime.mapping.Basemap;
+import com.esri.arcgisruntime.mapping.view.Callout;
+import com.esri.arcgisruntime.mapping.view.DefaultMapViewOnTouchListener;
 import com.esri.arcgisruntime.mapping.view.Graphic;
 import com.esri.arcgisruntime.mapping.view.GraphicsOverlay;
+import com.esri.arcgisruntime.mapping.view.IdentifyGraphicsOverlayResult;
 import com.esri.arcgisruntime.mapping.view.LocationDisplay;
 import com.esri.arcgisruntime.mapping.view.MapView;
 import com.esri.arcgisruntime.symbology.PictureMarkerSymbol;
@@ -40,25 +56,36 @@ import java.io.Reader;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.io.Writer;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.zip.Inflater;
 
 public class Map_Activity extends AppCompatActivity {
 
 
-    NavigationView navigationView;
-    DrawerLayout drawerLayout;
-    ImageView navButton;
-    Boolean nVaigation=false;
+    private NavigationView navigationView;
+    private DrawerLayout drawerLayout;
+    private ImageView navButton;
+    private Boolean nVaigation=false;
     private MapView mMapView;
     private LocationDisplay mLocationDisplay;
     private GraphicsOverlay mGraphicsOverlay;
-    BitmapDrawable parkingMarker;
-    PictureMarkerSymbol parkingPicture;
-    Graphic markerGraphics;
-    ParkingModel[] parkingModel;
+    private BitmapDrawable parkingMarker;
+    private   PictureMarkerSymbol parkingPicture;
+    private Graphic markerGraphics;
+    private ParkingModel[] parkingModel;
+    private Callout mCallout=null;
+    LayoutInflater inflater;
+
+    private static final String sTag = "Gesture";
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_map);
+        inflater=this.getLayoutInflater();
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
        initViews();
         try {
@@ -89,6 +116,100 @@ public class Map_Activity extends AppCompatActivity {
         mLocationDisplay.setAutoPanMode(LocationDisplay.AutoPanMode.COMPASS_NAVIGATION);
         mLocationDisplay.startAsync();
         setupMap();
+        mMapView.setOnTouchListener(new DefaultMapViewOnTouchListener(this, mMapView) {
+
+            @Override
+            public boolean onSingleTapConfirmed(MotionEvent motionEvent) {
+                Log.d(sTag, "onSingleTapConfirmed: " + motionEvent.toString());
+
+
+                // get the point that was clicked and convert it to a point in map coordinates
+                android.graphics.Point screenPoint = new android.graphics.Point(Math.round(motionEvent.getX()),
+                        Math.round(motionEvent.getY()));
+                    final ListenableFuture<IdentifyGraphicsOverlayResult> identifyGraphic = mMapView.identifyGraphicsOverlayAsync(mGraphicsOverlay, screenPoint, 10.0, false, 2);
+                // create a map point from screen point
+                identifyGraphic.addDoneListener(new Runnable() {
+                    @Override
+                    public void run() {
+
+                        IdentifyGraphicsOverlayResult grOverlayResult = null;
+                        try {
+                            grOverlayResult = identifyGraphic.get();
+                        } catch (ExecutionException e) {
+                            e.printStackTrace();
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        // get the list of graphics returned by identify graphic overlay
+                        List<Graphic> graphic = grOverlayResult.getGraphics();
+                        // get size of list in results
+                        int identifyResultSize = graphic.size();
+                        if (graphic.size()>0) {
+                            for (int i = 0; i <= graphic.size(); i++) {
+                                Point graphicPoint = (Point) graphic.get(i).getGeometry();
+                                double x = graphicPoint.getX();
+                                double y = graphicPoint.getY();
+                                for (ParkingModel in : parkingModel) {
+                                    if (in.areaMarker.x.equals(x) & in.areaMarker.y.equals(y)) {
+                                        // convert to WGS84 for lat/lon format
+
+                                        // create a textview for the callout
+                                        TextView calloutContent = new TextView(getApplicationContext());
+                                        calloutContent.setTextColor(Color.BLACK);
+                                        calloutContent.setSingleLine();
+                                        // format coordinates to 4 decimal places
+                                        View mCalloutView = inflater.inflate(R.layout.mcallout_layout,null);
+                                        TextView name = (TextView) mCalloutView.findViewById(R.id.parking_name);
+                                        TextView total = (TextView) mCalloutView.findViewById(R.id.total_txt);
+                                        TextView reservedCount = (TextView) mCalloutView.findViewById(R.id.reservedcount_txt);
+                                        TextView availableCount = (TextView) mCalloutView.findViewById(R.id.available_count_txt);
+                                        TextView availablePerc = (TextView) mCalloutView.findViewById(R.id.avilable_perc_txt);
+                                        TextView areaName = (TextView) mCalloutView.findViewById(R.id.parking_name_txt);
+                                        areaName.setText("  Area parking "+in.name+" Area");
+                                        name.setText(in.name);
+                                        total.setText(String.valueOf(in.total));
+                                        reservedCount.setText(String.valueOf(in.reservedCount));
+                                        availableCount.setText(String.valueOf(in.availableCount));
+                                        int ava,tot;
+                                        ava=in.availableCount;
+                                        tot=in.total;
+                                        double percD=((double)ava/(double)tot)*100;
+                                        availablePerc.setText(String.format("%d%%", (int)percD));
+                                        name.setEnabled(true);
+                                        total.setEnabled(true);
+                                        reservedCount.setEnabled(true);
+                                        availableCount.setEnabled(true);
+                                        availablePerc.setEnabled(true);
+                                        // get callout, set content and show
+                                        mCallout = mMapView.getCallout();
+                                        mCallout.setLocation(graphicPoint);
+                                        mCallout.getStyle().setBorderColor(Color.WHITE);
+                                        mCallout.getStyle().setBorderWidth(0);
+                                        mCallout.getStyle().setCornerRadius(20);
+
+                                        mCallout.setContent(mCalloutView);
+                                        mCallout.show();
+
+                                        // center on tapped point
+                                        mMapView.setViewpointCenterAsync(graphicPoint);
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                        else if(mCallout!=null) {
+                            if(mCallout.isShowing())
+                            mCallout.dismiss();
+                        }
+
+                    }
+
+                });
+
+                    return true;
+            }
+        });
+
         setupLocationDisplay();
         createGraphics(parkingModel);
 
@@ -167,7 +288,7 @@ public class Map_Activity extends AppCompatActivity {
 
             }
             areaCoordinates=new AreaCoordinates(lat[0],longitude[0],lat[1],longitude[1],lat[2],longitude[2],lat[3],longitude[3],lat[4],longitude[4]);
-            parkingModel[i]= new ParkingModel(parkingObject.getString("parkingId"),parkingObject.getString("name"),parkingObject.getString("description"),parkingObject.getString("total"),parkingObject.getString("reservedCount"),parkingObject.getString("availableCount"),areaMarker,areaCoordinates);
+            parkingModel[i]= new ParkingModel(parkingObject.getString("parkingId"),parkingObject.getString("name"),parkingObject.getString("description"),parkingObject.getInt("total"),parkingObject.getInt("reservedCount"),parkingObject.getInt("availableCount"),areaMarker,areaCoordinates);
         }
         return parkingModel;
  }
@@ -235,6 +356,7 @@ public class Map_Activity extends AppCompatActivity {
             parkingPicture.setWidth(50);
             com.esri.arcgisruntime.geometry.Point markerPoint = new com.esri.arcgisruntime.geometry.Point( in.areaMarker.x,  in.areaMarker.y, SpatialReferences.getWebMercator());
             markerGraphics = new Graphic(markerPoint,parkingPicture);
+
             mGraphicsOverlay.getGraphics().add(markerGraphics);
 
         }
@@ -243,50 +365,49 @@ public class Map_Activity extends AppCompatActivity {
     }
 
     private void createPolygonGraphics(ParkingModel[] parkingMode) {
-for(ParkingModel in : parkingMode)
-{
-    SimpleFillSymbol polygonSymbol = null;
-    int total,reservedCount,red,green,yellow;
-    total=Integer.parseInt(in.total);
-    reservedCount=Integer.parseInt(in.reservedCount);
-    red= total*90/100;
-    yellow=total*70/100;
-    green=total*40/100;
+        for (ParkingModel in : parkingMode) {
+            SimpleFillSymbol polygonSymbol = null;
+            int total, reservedCount, red, green, yellow;
+            total = in.total;
+            reservedCount =in.reservedCount;
+            red = total * 90 / 100;
+            yellow = total * 70 / 100;
+            green = total * 40 / 100;
 
-    PointCollection polygonPoints = new PointCollection(SpatialReferences.getWebMercator());
-    polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( in.areaCoordinates.pointX,
-            in.areaCoordinates.pointY));
-    polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( in.areaCoordinates.pointX1,
-            in.areaCoordinates.pointY1));
-    polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( in.areaCoordinates.pointX2,
-            in.areaCoordinates.pointY2));
-    polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( in.areaCoordinates.pointX3,
-            in.areaCoordinates.pointY3));
-    polygonPoints.add(new com.esri.arcgisruntime.geometry.Point( in.areaCoordinates.pointX4,
-            in.areaCoordinates.pointY4));
+            PointCollection polygonPoints = new PointCollection(SpatialReferences.getWebMercator());
+            polygonPoints.add(new com.esri.arcgisruntime.geometry.Point(in.areaCoordinates.pointX,
+                    in.areaCoordinates.pointY));
+            polygonPoints.add(new com.esri.arcgisruntime.geometry.Point(in.areaCoordinates.pointX1,
+                    in.areaCoordinates.pointY1));
+            polygonPoints.add(new com.esri.arcgisruntime.geometry.Point(in.areaCoordinates.pointX2,
+                    in.areaCoordinates.pointY2));
+            polygonPoints.add(new com.esri.arcgisruntime.geometry.Point(in.areaCoordinates.pointX3,
+                    in.areaCoordinates.pointY3));
+            polygonPoints.add(new com.esri.arcgisruntime.geometry.Point(in.areaCoordinates.pointX4,
+                    in.areaCoordinates.pointY4));
+            Polygon polygon = new Polygon(polygonPoints);
 
-    Polygon polygon = new Polygon(polygonPoints);
-    if(reservedCount<=green)
-    { polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.SOLID, Color.RED,
-            new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.RED, 2.0f));}
-    else if(reservedCount<=yellow)
-    {
-        polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.SOLID, Color.GREEN,
-                new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.GREEN, 2.0f));
-    }
+            if (reservedCount <= green) {
+                polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.SOLID, Color.GREEN,
+                        new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.GREEN, 2.0f));
+            } else if (reservedCount <= yellow) {
+                polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.SOLID, Color.YELLOW,
+                        new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.YELLOW, 2.0f));
+            } else {
 
-    else
-    {
-        polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.SOLID, Color.YELLOW,
-                new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.YELLOW, 2.0f));
-    }
-
-    assert polygonSymbol != null;
-    Graphic polygonGraphic = new Graphic(polygon, polygonSymbol);
-    mGraphicsOverlay.getGraphics().add(polygonGraphic);
-}
+                polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.SOLID, Color.RED,
+                        new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.RED, 2.0f));
+            }
+            assert polygonSymbol != null;
+            Graphic polygonGraphic = new Graphic(polygon, polygonSymbol);
+            mGraphicsOverlay.getGraphics().add(polygonGraphic);
+        }
 
     }
+
+
+
+
     private void createGraphics(ParkingModel[] parkingModel) {
         createGraphicsOverlay();
         createMarkers(parkingModel);

@@ -1,10 +1,13 @@
 package com.example.deptoftrans;
 
+import com.esri.arcgisruntime.geometry.Polygon;
+
 public class ParkingModel {
-   public String parkingId,name,description,total,reservedCount,availableCount;
+   public String parkingId,name,description;
+   int total,reservedCount,availableCount;
     public   AreaMarker areaMarker;
     public AreaCoordinates areaCoordinates;
-ParkingModel(String parkingId, String name, String description, String total, String reservedCount, String availableCount, AreaMarker areaMarker, AreaCoordinates areaCoordinates)
+ParkingModel(String parkingId, String name, String description, int total, int reservedCount, int availableCount, AreaMarker areaMarker, AreaCoordinates areaCoordinates)
 {
     this.parkingId=parkingId; this.name=name; this.description=description; this.total=total; this.reservedCount=reservedCount;
     this.availableCount=availableCount; this.areaMarker=areaMarker; this.areaCoordinates=areaCoordinates;
